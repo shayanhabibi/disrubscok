@@ -4,7 +4,6 @@ version       = "0.1.0"
 author        = "shayanhabibi"
 description   = "TSLQueue"
 license       = "MIT"
-srcDir        = "src"
 
 
 # Dependencies
