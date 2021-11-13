@@ -23,7 +23,8 @@ template `@=`*[T](d: var Atomic[T], v: T) = d.store(v, moRlx)
 template `[]`*[T](d: var Atomic[T]): T = d.load(moRlx)
 template `<-`*(dest: ptr NodePtr, src: NodePtr) = dest = src.unsafeAddr()
 template `<-`*(dest: ptr NodePtr, src: ptr NodePtr) = dest = src
-converter toNodePtr*(x: ptr NodePtr): NodePtr = x[]
+template `<-`*(dest: ptr NodePtr, src: ptr Node) = dest = cast[ptr NodePtr](src)
+converter toNodePtr*(x: ptr NodePtr): var NodePtr = x[]
 
 const ctx* = initContext[Node](3)
 
