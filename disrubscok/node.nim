@@ -1,11 +1,12 @@
 import disrubscok/spec
-import wtbanland/[atomics, tagptr, memalloc, volatile]
+import wtbanland/[atomics, tagptr, memalloc, nuclear]
 
 template nodePadding: int =
   cacheLineSize - sizeof(pointer) * 4 - sizeof(uint) * 2 - 2
 
 type
   NodePtr* = Atomic[TagPtr]
+
   Node* = object # Cache line aligned
     parent*: NodePtr
     left*: NodePtr

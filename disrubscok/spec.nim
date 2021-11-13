@@ -1,7 +1,7 @@
 # import wtbanland/cacheline # Not ready to be used yet; just use a const
 const cacheLineSize* = 64
 
-import wtbanland/[atomics, tagptr, memalloc]
+import wtbanland/[atomics, tagptr, memalloc, nuclear]
 
 const
   deleteFlag* = 1                      # 1

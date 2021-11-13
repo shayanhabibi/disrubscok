@@ -1,3 +1,5 @@
+# (c) copyright Shayan Habibi
+
 import winim/lean
 
 const
