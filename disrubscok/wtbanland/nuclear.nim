@@ -56,7 +56,7 @@ proc atomic_fetch_xor_explicit[T, A](location: ptr A; value: T; order: MemoryOrd
 
 type
   NuclearPointer = pointer
-  Nuclear*[T] = distinct uint
+  Nuclear*[T] = distinct T
 
 ## Nuclear
 ## Emulates volatile pointers
@@ -69,17 +69,26 @@ type
 ## All assignments to Nuclears will change the destination it points to.
 ## Nuclears can point to Nuclears.
 
-template toPtr[T](x: Nuclear[T]): ptr T = cast[ptr T](x)
-template toAtomicPtr[T](x: Nuclear[T]): ptr T.atomicType = cast[ptr T.atomicType](x)
+# template toPtr[T](x: Nuclear[T]): ptr T = cast[ptr T](x)
+# template toAtomicPtr[T](x: Nuclear[T]): ptr T.atomicType = cast[ptr T.atomicType](x)
 
-proc `[]`*[T](x: Nuclear[T]): T =
+proc `[]`*[T](x: var Nuclear[T]): T =
   ## This will return the value/object the nuclear is pointing to
-  atomic_load_explicit[nonAtomicType(T), atomicType(T)](x.toAtomicPtr(), moRelaxed)
+  atomic_load_explicit[nonAtomicType(T), atomicType(T)](
+    cast[ptr atomicType(T)](unsafeAddr(x)), moRelaxed
+    )
 
-proc `<-`*[T](x, y: Nuclear[T]) =
+proc `<-`*[T](x, y: var Nuclear[T]) =
   ## This changes the value the nuclear is pointing to
   atomic_store_explicit[nonAtomicType(T), atomicType(T)](
-    cast[ptr uint.atomicType()](unsafeAddr(x)), cast[nonAtomicType(uint)](y), moRelaxed
+    # cast[ptr atomicType(T)](unsafeAddr(x)), cast[nonAtomicType(uint)](y), moRelaxed
+    cast[ptr atomicType(T)](unsafeAddr(x)), y[], moRelaxed
     )
+
+proc `<-`*[T](x: var Nuclear[T], y: T) =
+  atomic_store_explicit[nonAtomicType(T), atomicType(T)](
+    cast[ptr atomicType(T)](unsafeAddr(x)), y, moRelaxed
+  )
+
 
 # proc isNil[T](x: Nuclear[T]): bool {.inline.}
