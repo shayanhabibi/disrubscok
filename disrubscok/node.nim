@@ -1,52 +1,32 @@
 import disrubscok/spec
-import wtbanland/[atomics, tagptr, memalloc, nuclear]
+import nuclear
 
 template nodePadding: int =
   cacheLineSize - sizeof(pointer) * 4 - sizeof(uint) * 2 - 2
 
 type
-  NodePtr* = Atomic[TagPtr]
-
   Node* = object # Cache line aligned
-    parent*: NodePtr
-    left*: NodePtr
-    next*: NodePtr
-    right*: NodePtr
-    value*: Atomic[uint]
-    key*: Atomic[uint]
-    inserting*: Atomic[uint8]
-    parentDirection*: Atomic[uint8]
+    parent*: nuclear Node
+    left*: nuclear Node
+    next*: nuclear Node
+    right*: nuclear Node
+    value*: uint
+    key*: uint
+    inserting*: bool
+    parentDirection*: Direction
     padding: array[nodePadding, char]
 
-template `@=`*(d: NodePtr, v: TagPtr) = d.store(v, moRlx)
-template `[]`*(d: NodePtr): TagPtr = d.load(moRlx)
-template `@=`*[T](d: var Atomic[T], v: T) = d.store(v, moRlx)
-template `[]`*[T](d: var Atomic[T]): T = d.load(moRlx)
-template `<-`*(dest: ptr NodePtr, src: NodePtr) = dest = src.unsafeAddr()
-template `<-`*(dest: ptr NodePtr, src: ptr NodePtr) = dest = src
-template `<-`*(dest: ptr NodePtr, src: ptr Node) = dest = cast[ptr NodePtr](src)
-converter toNodePtr*(x: ptr NodePtr): var NodePtr = x[]
+template getMark*(tptr: nuclear Node): untyped = cast[uint](cast[int](tptr) and flagMask)
+template getMark*(tptr: ptr Node): untyped = cast[uint](cast[int](tptr) and flagMask)
+template address*(tptr: nuclear Node): untyped = cast[nuclear Node](cast[int](tptr) and ptrMask)
+template address*(tptr: ptr Node): untyped = cast[ptr Node](cast[int](tptr) and ptrMask)
 
-const ctx* = initContext[Node](3)
+template markDelete*(v: nuclear Node): nuclear Node = cast[nuclear Node](cast[int](v) or deleteFlag)
+template markInsert*(v: nuclear Node): nuclear Node = cast[nuclear Node](cast[int](v) or insertFlag)
+template markLeaf*(v: nuclear Node): nuclear Node = cast[nuclear Node](cast[int](v) or leafFlag)
 
-template tagPtr*(nptr: ptr Node | SomeInteger | pointer): TagPtr = cast[TagPtr](nptr)
+proc createNode*(): nuclear Node =
+  result = nucleate Node
 
-template getFlags*(tptr: TagPtr): untyped = getFlags(tptr, ctx)
-template getPtr*(tptr: TagPtr): untyped = getPtr(tptr, ctx)
-template getNode*(nptr: NodePtr): untyped = cast[ptr Node](nptr[])[]
-# template getFlags*(nptr: NodePtr): untyped = getFlags(nptr.rawLoad(), ctx)
-# template getPtr*(nptr: NodePtr): untyped = getPtr(nptr.rawLoad(), ctx)
-
-template markDelete*(v: NodePtr): TagPtr = v.fetchOr(deleteFlag)
-template markInsert*(v: NodePtr): TagPtr = v.fetchOr(insertFlag)
-template markLeaf*(v: NodePtr): TagPtr = v.fetchOr(leafFlag)
-template markDelete*(v: TagPtr): TagPtr = v or deleteFlag
-template markInsert*(v: TagPtr): TagPtr = v or insertFlag
-template markLeaf*(v: TagPtr): TagPtr = v or leafFlag
-
-proc createNode*(): ptr Node =
-  result = createShared(Node)
-  result.volatileStore(Node())
-
-proc freeNode*(n: ptr Node) =
-  freeShared(n)
+proc freeNode*(n: ptr Node | nuclear Node | pointer) =
+  freeShared(cast[ptr Node](n))
