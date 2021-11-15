@@ -6,8 +6,8 @@ const
   insertFlag* = 1 shl 1              # 2
   leafFlag* = deleteFlag or insertFlag # 3
 
-  flagsMask* = ((1 shl 2) - 1).uint
-  ptrMask* = high(uint) xor flagsMask
+  flagMask* = ((1 shl 2) - 1).uint
+  ptrMask* = high(uint) xor flagMask
 
   physicalDeleteRate*: uint32 = 1
   insertCleanRate*: uint32 = 50

@@ -27,45 +27,71 @@ type
     nextNode: ptr Node
     casNode1: ptr Node
     casNode2: ptr Node
-    duplicate: uint8
-    parentDirection: uint8
+    duplicate: Direction
+    parentDirection: Direction
     padding: array[infoPadding, char]
 
 var previousHead, previousDummy {.threadvar.}: ptr Node
 
 proc rand[T](tsl: TslQueue[T]): uint32 {.inline.} =
-  cast[uint32](rand(tsl.delScale))
+  cast[uint32](rand(tsl.delScale.int))
 
 template readLeft(): untyped {.dirty.} =
-  operationMark = parentNode.next[].getMark
+  when operationMark is uint:
+    operationMark = parentNode.next[].getMark
+  else:
+    operationMark = parentNode.next
   parentNodeLeft = parentNode.left[].cptr
   childNode = cast[nuclear Node](parentNodeLeft.address)
-  childMark = parentNodeLeft.getMark
+  when childMark is uint:
+    childMark = parentNodeLeft.getMark
+  else:
+    childMark = parentNodeLeft.getMark
   parentDirection = LeftDir
 
 template readRight(): untyped {.dirty.} =
-  operationMark = parentNode.next[].getMark
+  when operationMark is uint:
+    operationMark = parentNode.next[].getMark
+  else:
+    operationMark = parentNode.next
   parentNodeRight = parentNode.right[].cptr
   childNode = cast[nuclear Node](parentNodeRight.address)
-  childMark = parentNodeRight.getMark
+  when childMark is uint:
+    childMark = parentNodeRight.getMark
+  else:
+    childMark = parentNodeRight
   parentDirection = RightDir
 
 template traverse(): untyped {.dirty.} =
   if key <= parentNode.key[]:
-    operationMark = parentNode.next[].getMark
+    when operationMark is uint:
+      operationMark = parentNode.next[].getMark
+    else:
+      operationMark = parentNode.next
     parentNodeLeft = parentNode.left[].cptr
     childNode = cast[nuclear Node](parentNodeLeft.address)
-    childMark = parentNodeLeft.getMark
-    parentDirection = LeftDir
+    when childMark is uint:
+      childMark = parentNodeLeft.getMark
+    else:
+      childMark = parentNodeLeft
+      parentDirection = LeftDir
   else:
-    operationMark = parentNode.next[].getMark
+    when operationMark is uint:
+      operationMark = parentNode.next[].getMark
+    else:
+      operationMark = parentNode.next
     parentNodeRight = parentNode.right[].cptr
     childNode = cast[nuclear Node](parentNodeRight.address)
-    childMark = parentNodeRight.getMark
-    parentDirection = RightDir
+    when childMark is uint:
+      childMark = parentNodeRight.getMark
+    else:
+      childMark = parentNodeRight
+      parentDirection = RightDir
 
 
 proc newTslQueue*[T](numThreads: int): TslQueue[T] =
+  result = new TslQueue[T]
+
   var head = createNode()
   var root = createNode()
   var dummy = createNode()
@@ -74,15 +100,14 @@ proc newTslQueue*[T](numThreads: int): TslQueue[T] =
   dummy.right[] = markLeaf(dummy)
   dummy.parent[] = root
 
+
   head.next[] = dummy
 
   root.left[] = dummy
   root.key[] = 1'u
-
-  result = new TslQueue  
-  result.head <- head
-  result.root <- root
-  result.threadNum = numThreads.uint
+  result.head = head
+  result.root = root
+  result.threadNum = numThreads
   result.delScale = cast[uint32](numThreads.uint * 100.uint)
 
 proc pqSize[T](tsl: TslQueue[T]): uint32 =
@@ -107,12 +132,12 @@ template tryHelpingInsert(newNode: nuclear Node) =
 
   if parentDirection == LeftDir and newNode.inserting[]:
     if newNode.inserting[]:
-      discard casNode1.left[].compareExchange(casNode2, newNode)
+      discard casNode1.left.addr.compareExchange(casNode2, newNode)
       if newNode.inserting[]:
         newNode.inserting[] = false
   elif parentDirection == RightDir and newNode.inserting[]:
     if newNode.inserting[]:
-      discard casNode1.left[].compareExchange(casNode2, newNode)
+      discard casNode1.right.addr.compareExchange(casNode2, newNode)
       if newNode.inserting[]:
         newNode.inserting[] = false
 
@@ -144,7 +169,7 @@ proc physicalDelete[T](tsl: TslQueue[T], dummyNode: nuclear Node) =
               if childNext.inserting[] and
                   childNext.parent[] == parentNode:
                 tryHelpingInsert(childNext)
-              elif parentNode.right[] == childNode[].markLeaf:
+              elif parentNode.right[] == childNode.markLeaf:
                 if grandParentNode.key[] != 0'u:
                   grandParentNode.key[] = 0'u
                   break finish
@@ -153,7 +178,7 @@ proc physicalDelete[T](tsl: TslQueue[T], dummyNode: nuclear Node) =
           else:
             if not grandParentNode.next[].getMark != 0'u:
               if grandParentNode.left[].cptr == markedNode:
-                if grandParentNode.left[].compareExchange(markedNode, parentNode):
+                if grandParentNode.left.compareExchange(markedNode, parentNode):
                   readLeft()
                   break
                 parentNode = grandParentNode
@@ -174,7 +199,7 @@ proc physicalDelete[T](tsl: TslQueue[T], dummyNode: nuclear Node) =
           currentNext = childNode.next[].cptr
           childNext = cast[nuclear Node](currentNext.address)
           if currentNext.getMark != 0'u:
-            if childNext.insert[] != 0'u8 and
+            if childNext.inserting[] and
                 childNext.parent[] == parentNode:
               tryHelpingInsert(childNext)
             elif parentNode.left[] == childNode.markLeaf:
@@ -189,22 +214,23 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
   var childNode, grandParentNode, parentNode, root: nuclear Node
   var childNext, currentNext, parentNodeRight, parentNodeLeft, markedNode: ptr Node
   var parentDirection: Direction
-  var operationMark, childMark: nuclear uint
+  var operationMark: Nuclear[Nuclear[Node]]
+  var childMark: ptr Node
+
   root = tsl.root
 
   var insSeek = RecordInfo()
 
   parentNode = root
   childNode = root.left[]
-
   while true:
-    if operationMark[] == deleteFlag.uint:
+    if not operationMark.isNil and operationMark[].getMark == deleteFlag.uint:
       readRight()
       markedNode = parentNode.cptr
 
       while true:
-        if operationMark[] == deleteFlag.uint:
-          if childMark[] != leafFlag.uint:
+        if operationMark[].getMark == deleteFlag.uint:
+          if childMark.getMark != leafFlag.uint:
             parentNode = childNode
             readRight()
             continue
@@ -213,14 +239,14 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
             readRight()
             break
         else:
-          if rand(high(uint32)) < insertCleanRate:
+          if rand(tsl) < insertCleanRate:
             if not (grandParentNode.next[].getMark != 0'u) and
                 grandParentNode.left[].cptr == markedNode:
-              grandParentNode.left[].compareExchange(markedNode, parentNode)
+              discard grandParentNode.left.compareExchange(markedNode, parentNode)
           traverse()
           break
       continue
-    if childMark[] != leafFlag:
+    if childMark.getMark != leafFlag:
       grandParentNode = parentNode
       parentNode = childNode
       traverse()
@@ -232,7 +258,7 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
         parentNode = cast[nuclear Node](childNext)
         readRight()
       elif (not childNext.isNil()) and childNext[].inserting:
-        tryHelpingInsert(childNext)
+        tryHelpingInsert(cast[nuclear Node](childNext))
         parentNode = cast[nuclear Node](childNext)
         traverse()
       elif (not childNext.isNil()) and childNext[].key == key:
@@ -251,15 +277,15 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
       else:
         traverse()
 
-proc deleteMin[T](tsl: TslQueue[T]): uint =
+proc deleteMin*[T](tsl: TslQueue[T]): uint =
   var leafNode, nextLeaf, head: nuclear Node
   var xorNode, currentNext, headItemNode, newHead: ptr Node
   var value: uint
 
   head = tsl.head
 
-  headItemNode = head.next[]
-  leafNode = headItemNode
+  headItemNode = head.next[].cptr
+  leafNode = cast[nuclear Node](headItemNode)
 
   if previousHead == leafNode.cptr:
     leafNode = cast[nuclear Node](previousDummy)
@@ -282,7 +308,7 @@ proc deleteMin[T](tsl: TslQueue[T]): uint =
         if tsl.rand >= physicalDeleteRate:
           return value
         if head.next[].cptr == headItemNode:
-          if head.next[].compareExchange(headItemNode, xorNode):
+          if head.next.compareExchange(headItemNode, xorNode):
             previousHead = xorNode
             if xorNode[].key != 0'u:
               xorNode[].key = 0'u
@@ -306,7 +332,7 @@ proc insert*[T](tsl: TslQueue[T]; key, value: uint): bool =
   newNode.right[] = markLeaf(newNode)
   newNode.key[] = key
   newNode.value[] = value
-  
+
   while true:
     casNode1 = nil
     casNode2 = nil
@@ -321,7 +347,6 @@ proc insert*[T](tsl: TslQueue[T]; key, value: uint): bool =
     casNode2 = cast[nuclear Node](insSeek.casNode2)
     leafNode = cast[nuclear Node](insSeek.child)
     nextLeaf = insSeek.nextNode
-
     newNode.left[] = leafNode.markLeaf
     newNode.parentDirection[] = parentDirection
     newNode.parent[] = casNode1
@@ -330,20 +355,18 @@ proc insert*[T](tsl: TslQueue[T]; key, value: uint): bool =
     if leafNode.next[].cptr == nextLeaf:
       template casDir(casDir: Direction): untyped =
         if leafNode.next[].cptr == nextLeaf:
-          if leafNode.next[].compareExchange(nextLeaf, newNode):
+          if leafNode.next.compareExchange(nextLeaf, newNode):
             if newNode.inserting[]:
               when casDir == RightDir:
                 if casNode1.right[] == casNode2:
                   var x: int
-                  while not casNode1.right[].compareExchange(casNode2, newNode):
+                  while not casNode1.right.compareExchange(casNode2, newNode):
                     inc x
-                    echo x
               elif casDir == LeftDir:
                 if casNode1.left[] == casNode2:
                   var x: int
-                  while not casNode1.left[].compareExchange(casNode2, newNode):
+                  while not casNode1.left.compareExchange(casNode2, newNode):
                     inc x
-                    echo x
               if newNode.inserting[]:
                 newNode.inserting[] = false
             return true

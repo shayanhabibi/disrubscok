@@ -16,10 +16,10 @@ type
     parentDirection*: Direction
     padding: array[nodePadding, char]
 
-template getMark*(tptr: nuclear Node): untyped = cast[uint](cast[int](tptr) and flagMask)
-template getMark*(tptr: ptr Node): untyped = cast[uint](cast[int](tptr) and flagMask)
-template address*(tptr: nuclear Node): untyped = cast[nuclear Node](cast[int](tptr) and ptrMask)
-template address*(tptr: ptr Node): untyped = cast[ptr Node](cast[int](tptr) and ptrMask)
+template getMark*(tptr: nuclear Node): untyped = cast[uint](cast[uint](tptr) and flagMask)
+template getMark*(tptr: ptr Node): untyped = cast[uint](cast[uint](tptr) and flagMask)
+template address*(tptr: nuclear Node): untyped = cast[nuclear Node](cast[uint](tptr) and ptrMask)
+template address*(tptr: ptr Node): untyped = cast[ptr Node](cast[uint](tptr) and ptrMask)
 
 template markDelete*(v: nuclear Node): nuclear Node = cast[nuclear Node](cast[int](v) or deleteFlag)
 template markInsert*(v: nuclear Node): nuclear Node = cast[nuclear Node](cast[int](v) or insertFlag)
@@ -27,6 +27,10 @@ template markLeaf*(v: nuclear Node): nuclear Node = cast[nuclear Node](cast[int]
 
 proc createNode*(): nuclear Node =
   result = nucleate Node
+  result.parent[] = cast[nuclear Node](0)
+  result.left[] = cast[nuclear Node](0)
+  result.next[] = cast[nuclear Node](0)
+  result.right[] = cast[nuclear Node](0)
 
-proc freeNode*(n: ptr Node | nuclear Node | pointer) =
+proc freeNode*(n: ptr Node | Nuclear[Node] | pointer) =
   freeShared(cast[ptr Node](n))
