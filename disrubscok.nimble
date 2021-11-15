@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.1.1"
 author        = "shayanhabibi"
 description   = "TSLQueue"
 license       = "MIT"
@@ -9,4 +9,4 @@ license       = "MIT"
 # Dependencies
 
 requires "nim >= 1.4.8"
-requires "https://github.com/shayanhabibi/nuclear >= 0.1.1"
+requires "https://github.com/shayanhabibi/nuclear >= 0.1.2"
