@@ -17,12 +17,8 @@ type
     threadNum: int
     delScale: uint32
     padding: array[tslPadding, char]
-
-  NextCast* = object
-    next: ptr Node
-    right: ptr Node
   
-  RecordInfo* = object
+  RecordInfo = object
     child: ptr Node
     nextNode: ptr Node
     casNode1: ptr Node
@@ -278,6 +274,22 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
         traverse()
 
 proc pop*[T](tsl: TslQueue[T]): T =
+  ## Remove the object from the queue with the lowest key value.
+  runnableExamples:
+    type
+      Obj = ref object
+        field1: int
+        field2: int
+
+    var myobj = Obj(field1: 5, field2: 19)
+    var myobj2 = Obj(field1: 3, field2: 12)
+    var myobj3 = Obj(field1: 0, field2: 1)
+    var tsl = newTslQueue[Obj](1)
+    doAssert tsl.push(2, myobj) == true
+    doAssert tsl.push(1, myobj2) == true
+    doAssert tsl.push(3, myobj3) == true
+    doAssert tsl.pop() == myobj2
+    
   template ready(x: uint): T =
     when T is ref:
       let res = cast[T](x)
@@ -330,6 +342,21 @@ proc pop*[T](tsl: TslQueue[T]): T =
 
 
 proc push*[T](tsl: TslQueue[T]; vkey: Natural, val: T): bool =
+  ## Try push an object onto the queue with a key for priority.
+  ## Pops will remove the object with the lowest vkey first.
+  ## You cannot have duplicate keys (for the moment).
+  runnableExamples:
+    type
+      Obj = ref object
+        field1: int
+        field2: int
+
+    var myobj = Obj(field1: 5, field2: 19)
+
+    var tsl = newTslQueue[Obj](1)
+    doAssert tsl.push(1, myobj) == true
+    doAssert tsl.pop() == myobj
+  
   var key = vkey.uint
   when T is ref:
     GC_ref val
