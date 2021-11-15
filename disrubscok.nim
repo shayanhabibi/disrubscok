@@ -277,7 +277,14 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
       else:
         traverse()
 
-proc deleteMin*[T](tsl: TslQueue[T]): uint =
+proc pop*[T](tsl: TslQueue[T]): T =
+  template ready(x: uint): T =
+    when T is ref:
+      let res = cast[T](x)
+      GC_unref res
+      res
+    else:
+      cast[T](x)
   var leafNode, nextLeaf, head: nuclear Node
   var xorNode, currentNext, headItemNode, newHead: ptr Node
   var value: uint
@@ -296,7 +303,7 @@ proc deleteMin*[T](tsl: TslQueue[T]): uint =
     nextLeaf = cast[nuclear Node](currentNext)
     if nextLeaf.isNil:
       previousDummy = leafNode.cptr
-      return 0'u
+      return
     else:
       if currentNext.getMark != 0'u:
         leafNode = nextLeaf
@@ -306,7 +313,7 @@ proc deleteMin*[T](tsl: TslQueue[T]): uint =
         value = xorNode.address()[].value
         previousDummy = xorNode
         if tsl.rand >= physicalDeleteRate:
-          return value
+          return value.ready
         if head.next[].cptr == headItemNode:
           if head.next.compareExchange(headItemNode, xorNode):
             previousHead = xorNode
@@ -318,11 +325,20 @@ proc deleteMin*[T](tsl: TslQueue[T]): uint =
                 currentNext = nextLeaf.cptr
                 nextLeaf = nextLeaf.next[].address
                 freeNode(currentNext)
-        return value
+        return value.ready
       leafNode = cast[nuclear Node](xorNode.address)
 
 
-proc insert*[T](tsl: TslQueue[T]; key, value: uint): bool =
+proc push*[T](tsl: TslQueue[T]; vkey: Natural, val: T): bool =
+  var key = vkey.uint
+  when T is ref:
+    GC_ref val
+  template clean: untyped =
+    when T is ref:
+      GC_unref val
+    else:
+      discard
+  var value = cast[uint](val)
   var casNode1, casNode2, leafNode: nuclear Node
   var nextLeaf: ptr Node
   var parentDirection: Direction
@@ -339,6 +355,7 @@ proc insert*[T](tsl: TslQueue[T]; key, value: uint): bool =
     insSeek = insertSearch(tsl, key)
     if insSeek.duplicate == DuplDir:
       freeNode(newNode)
+      clean()
       return false
     elif insSeek.child.isNil:
       continue
@@ -359,14 +376,12 @@ proc insert*[T](tsl: TslQueue[T]; key, value: uint): bool =
             if newNode.inserting[]:
               when casDir == RightDir:
                 if casNode1.right[] == casNode2:
-                  var x: int
-                  while not casNode1.right.compareExchange(casNode2, newNode):
-                    inc x
+                  discard casNode1.right.compareExchange(casNode2, newNode)
+
               elif casDir == LeftDir:
                 if casNode1.left[] == casNode2:
-                  var x: int
-                  while not casNode1.left.compareExchange(casNode2, newNode):
-                    inc x
+                  discard casNode1.left.compareExchange(casNode2, newNode)
+
               if newNode.inserting[]:
                 newNode.inserting[] = false
             return true

@@ -1,16 +1,27 @@
 import disrubscok
 
-var tsl = newTslQueue[int](5)
+type
+  Obj = ref object
+    field1: int
+    field2: int
 
-echo tsl.insert(5'u, 10'u)
-echo tsl.insert(2'u, 5'u)
-echo tsl.insert(3'u, 10'u)
-echo tsl.insert(7'u, 5'u)
-echo tsl.insert(10'u, 10'u)
-echo tsl.deleteMin()
-echo tsl.insert(2'u, 5'u)
-echo tsl.insert(2'u, 10'u)
-echo tsl.deleteMin()
-echo tsl.deleteMin()
-echo tsl.deleteMin()
-echo tsl.deleteMin()
+var myobj = Obj(field1: 5, field2: 19)
+
+var tsl = newTslQueue[Obj](1)
+echo tsl.push(1, myobj)
+echo tsl.pop().repr
+
+# var tsl = newTslQueue[int](5)
+
+# echo tsl.push(5, 10)
+# echo tsl.push(2, 5)
+# echo tsl.push(3, 10)
+# echo tsl.push(7, 5)
+# echo tsl.push(10, 10)
+# echo tsl.pop()
+# echo tsl.push(2, 5)
+# echo tsl.push(2, 10)
+# echo tsl.pop()
+# echo tsl.pop()
+# echo tsl.pop()
+# echo tsl.pop()
