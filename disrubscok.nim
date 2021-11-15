@@ -27,7 +27,7 @@ type
     parentDirection: Direction
     padding: array[infoPadding, char]
 
-var previousHead, previousDummy {.threadvar.}: ptr Node
+var previousHead, previousDummy: ptr Node
 
 proc rand[T](tsl: TslQueue[T]): uint32 {.inline.} =
   cast[uint32](rand(tsl.delScale.int))
@@ -101,10 +101,10 @@ proc newTslQueue*[T](numThreads: int): TslQueue[T] =
 
   root.left[] = dummy
   root.key[] = 1'u
-  result.head = head
-  result.root = root
-  result.threadNum = numThreads
-  result.delScale = cast[uint32](numThreads.uint * 100.uint)
+  result[].head.nuclearAddr()[] = head
+  result[].root.nuclearAddr()[] = root
+  result[].threadNum.nuclearAddr()[] = numThreads
+  result[].delScale.nuclearAddr()[] = cast[uint32](numThreads.uint * 100.uint)
 
 proc pqSize[T](tsl: TslQueue[T]): uint32 =
   var prevNode, leafNode, nextLeaf, head: ptr Node
@@ -140,7 +140,7 @@ template tryHelpingInsert(newNode: nuclear Node) =
 
 proc physicalDelete[T](tsl: TslQueue[T], dummyNode: nuclear Node) =
   var childNode, childNext, grandParentNode, parentNode, root: nuclear Node
-  root = tsl.root
+  root = tsl[].root.nuclearAddr()[]
   var parentDirection: Direction
   var clear: uint8
   var parentNodeLeft, parentNodeRight, casVal, currentNext, markedNode: ptr Node
@@ -213,7 +213,7 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
   var operationMark: Nuclear[Nuclear[Node]]
   var childMark: ptr Node
 
-  root = tsl.root
+  root = tsl[].root.nuclearAddr()[]
 
   var insSeek = RecordInfo()
 
