@@ -1,0 +1,6 @@
+tslPadding	disrubscok.html#tslPadding.t	disrubscok: tslPadding(): int	
+infoPadding	disrubscok.html#infoPadding.t	disrubscok: infoPadding(): int	
+TslQueue	disrubscok.html#TslQueue	disrubscok: TslQueue	
+newTslQueue	disrubscok.html#newTslQueue,int	disrubscok: newTslQueue[T](numThreads: int): TslQueue[T]	
+pop	disrubscok.html#pop,TslQueue[T]	disrubscok: pop[T](tsl: TslQueue[T]): T	
+push	disrubscok.html#push,TslQueue[T],Natural,T	disrubscok: push[T](tsl: TslQueue[T]; vkey: Natural; val: T): bool	

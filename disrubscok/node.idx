@@ -1,0 +1,10 @@
+Node	disrubscok/node.html#Node	node: Node	
+getMark	disrubscok/node.html#getMark.t,nuclearNode	node: getMark(tptr: nuclear Node): untyped	
+getMark	disrubscok/node.html#getMark.t,ptr.Node	node: getMark(tptr: ptr Node): untyped	
+address	disrubscok/node.html#address.t,nuclearNode	node: address(tptr: nuclear Node): untyped	
+address	disrubscok/node.html#address.t,ptr.Node	node: address(tptr: ptr Node): untyped	
+markDelete	disrubscok/node.html#markDelete.t,nuclearNode	node: markDelete(v: nuclear Node): nuclear Node	
+markInsert	disrubscok/node.html#markInsert.t,nuclearNode	node: markInsert(v: nuclear Node): nuclear Node	
+markLeaf	disrubscok/node.html#markLeaf.t,nuclearNode	node: markLeaf(v: nuclear Node): nuclear Node	
+createNode	disrubscok/node.html#createNode	node: createNode(): nuclear Node	
+freeNode	disrubscok/node.html#freeNode	node: freeNode(n: ptr Node | Nuclear[Node] | pointer)	
