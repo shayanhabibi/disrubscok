@@ -1,5 +1,15 @@
-import disrubscok/spec
-import disrubscok/node
+## BonsaiQ
+## ====================
+## 
+## A lock-free linearizable priority queue algorithm by Adones Rukundo
+## and Philippas Tsigas as TSLQueue (Tree-Search-List Queue) implemented
+## and adapted in nim.
+##
+## The BonsaiQ is a combination of two structures; a binary external search
+## tree and an ordered linked list.
+
+import bonsaiq/spec
+import bonsaiq/node
 from std/random import rand
 import nuclear
 import nuclear/atomics as natomics
@@ -11,7 +21,7 @@ template infoPadding*: int =
   cacheLineSize - sizeof(ptr Node) * 4 - 2
 
 type
-  TslQueue*[T] = ref object
+  BonsaiQ*[T] = ref object
     head: nuclear Node
     root: nuclear Node
     threadNum: int
@@ -29,7 +39,7 @@ type
 
 var previousHead, previousDummy: ptr Node
 
-proc rand[T](tsl: TslQueue[T]): uint32 {.inline.} =
+proc rand[T](tsl: BonsaiQ[T]): uint32 {.inline.} =
   cast[uint32](rand(tsl.delScale.int))
 
 template readLeft(): untyped {.dirty.} =
@@ -85,8 +95,8 @@ template traverse(): untyped {.dirty.} =
       parentDirection = RightDir
 
 
-proc newTslQueue*[T](numThreads: int): TslQueue[T] =
-  result = new TslQueue[T]
+proc newBonsaiQ*[T](numThreads: int): BonsaiQ[T] =
+  result = new BonsaiQ[T]
 
   var head = createNode()
   var root = createNode()
@@ -106,7 +116,7 @@ proc newTslQueue*[T](numThreads: int): TslQueue[T] =
   result[].threadNum.nuclearAddr()[] = numThreads
   result[].delScale.nuclearAddr()[] = cast[uint32](numThreads.uint * 100.uint)
 
-proc pqSize[T](tsl: TslQueue[T]): uint32 =
+proc pqSize[T](tsl: BonsaiQ[T]): uint32 =
   var prevNode, leafNode, nextLeaf, head: ptr Node
   head = tsl.head.cptr
 
@@ -138,7 +148,7 @@ template tryHelpingInsert(newNode: nuclear Node) =
         newNode.inserting[] = false
 
 
-proc physicalDelete[T](tsl: TslQueue[T], dummyNode: nuclear Node) =
+proc physicalDelete[T](tsl: BonsaiQ[T], dummyNode: nuclear Node) =
   var childNode, childNext, grandParentNode, parentNode, root: nuclear Node
   root = tsl[].root.nuclearAddr()[]
   var parentDirection: Direction
@@ -206,7 +216,9 @@ proc physicalDelete[T](tsl: TslQueue[T], dummyNode: nuclear Node) =
             continue
 
 
-proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
+proc insertSearch[T](tsl: BonsaiQ[T], key: uint): RecordInfo =
+  # Locates an active preceding leaf node to the key, together with
+  # that leafs parent and its succeeding leaf.
   var childNode, grandParentNode, parentNode, root: nuclear Node
   var childNext, currentNext, parentNodeRight, parentNodeLeft, markedNode: ptr Node
   var parentDirection: Direction
@@ -273,7 +285,7 @@ proc insertSearch[T](tsl: TslQueue[T], key: uint): RecordInfo =
       else:
         traverse()
 
-proc pop*[T](tsl: TslQueue[T]): T =
+proc pop*[T](tsl: BonsaiQ[T]): T =
   ## Remove the object from the queue with the lowest key value.
   runnableExamples:
     type
@@ -284,23 +296,29 @@ proc pop*[T](tsl: TslQueue[T]): T =
     var myobj = Obj(field1: 5, field2: 19)
     var myobj2 = Obj(field1: 3, field2: 12)
     var myobj3 = Obj(field1: 0, field2: 1)
-    var tsl = newTslQueue[Obj](1)
+    var tsl = newBonsaiQ[Obj](1)
     doAssert tsl.push(2, myobj) == true
     doAssert tsl.push(1, myobj2) == true
     doAssert tsl.push(3, myobj3) == true
     doAssert tsl.pop() == myobj2
     
   template ready(x: uint): T =
+    # Template is used to prepare the received value from the node
+    # by converting it into its original type and decreasing its
+    # ref count if it is a ref
     when T is ref:
       let res = cast[T](x)
       GC_unref res
       res
     else:
       cast[T](x)
+    
   var leafNode, nextLeaf, head: nuclear Node
   var xorNode, currentNext, headItemNode, newHead: ptr Node
   var value: uint
 
+  # The operation will start from the head and perform a linear search
+  # on the list until a an active dummy node is located.
   head = tsl.head
 
   headItemNode = head.next[].cptr
@@ -310,38 +328,59 @@ proc pop*[T](tsl: TslQueue[T]): T =
     leafNode = cast[nuclear Node](previousDummy)
   else:
     previousHead = headItemNode
+
+  # Begin linear search loop of list
   while true:
     currentNext = leafNode.next[].cptr
     nextLeaf = cast[nuclear Node](currentNext)
     if nextLeaf.isNil:
       previousDummy = leafNode.cptr
-      return
+      break
+    if currentNext.getMark != 0'u:
+      leafNode = nextLeaf
     else:
-      if currentNext.getMark != 0'u:
-        leafNode = nextLeaf
-        continue
-      xorNode = leafNode.next.fetchXor(1).cptr
+      # Global Atomic Update I
+      # Logically delete the dummy by settings the next pointers
+      # delete flag to true.
+      xorNode = leafNode.next.fetchXor(1, moAcquire).cptr # REVIEW - wouldnt this turn off a deleted node though? :/
+      # Success of this operation linearizes operations
       if xorNode.getMark == 0'u:
+        # The suceeding leaf value is read; and that leaf becomes the new dummy
+        # node.
         value = xorNode.address()[].value
         previousDummy = xorNode
         if tsl.rand >= physicalDeleteRate:
-          return value.ready
+          # Random selection of operations based on the number of concurrent
+          # threads will ignore the physical deletion of logically deleted nodes
+          # and simply return the value received.
+          result = value.ready
+          break
         if head.next[].cptr == headItemNode:
+          # Global Atomic Update II
+          # Physically delete the logically deleted dummy from the list
+          # by updating the head nodes next pointer from the deleted dummy
+          # to the new active dummy
           if head.next.compareExchange(headItemNode, xorNode):
             previousHead = xorNode
             if xorNode[].key != 0'u:
               xorNode[].key = 0'u
+              # Global Atomic Update III
+              # Within the physical delete operation, we update the closest
+              # active ancestors left child pointer to point to the active dummy.
+              # It is likely that is already the case, in which case it is ignored.
               physicalDelete(tsl, cast[nuclear Node](xorNode))
               nextLeaf = cast[nuclear Node](headItemNode)
               while nextLeaf.cptr != xorNode:
                 currentNext = nextLeaf.cptr
                 nextLeaf = nextLeaf.next[].address
                 freeNode(currentNext)
-        return value.ready
+        result = value.ready
+        break
       leafNode = cast[nuclear Node](xorNode.address)
 
+      
 
-proc push*[T](tsl: TslQueue[T]; vkey: Natural, val: T): bool =
+proc push*[T](tsl: BonsaiQ[T]; vkey: Natural, val: T): bool =
   ## Try push an object onto the queue with a key for priority.
   ## Pops will remove the object with the lowest vkey first.
   ## You cannot have duplicate keys (for the moment).
@@ -353,39 +392,52 @@ proc push*[T](tsl: TslQueue[T]; vkey: Natural, val: T): bool =
 
     var myobj = Obj(field1: 5, field2: 19)
 
-    var tsl = newTslQueue[Obj](1)
+    var tsl = newBonsaiQ[Obj](1)
     doAssert tsl.push(1, myobj) == true
     doAssert tsl.pop() == myobj
   
   var key = vkey.uint
+  # Begin by increasing the ref count of the val if it is a ref
   when T is ref:
     GC_ref val
   template clean: untyped =
+    # This template will be used if the push fails to dec the ref count
     when T is ref:
       GC_unref val
     else:
       discard
+
   var value = cast[uint](val)
   var casNode1, casNode2, leafNode: nuclear Node
   var nextLeaf: ptr Node
   var parentDirection: Direction
   var insSeek: RecordInfo
 
+  # First we create a new node that we will insert into the tree with the val
+  # provided
   var newNode: nuclear Node = createNode()
   newNode.right[] = markLeaf(newNode)
   newNode.key[] = key
   newNode.value[] = value
 
+  # Begin insert-loop
   while true:
+    # Nullify any preceding values of our casNodes
     casNode1 = nil
     casNode2 = nil
-    insSeek = insertSearch(tsl, key)
+    # Begin by performing an insertSearch with the vkey
+    insSeek = insertSearch(tsl, key) # GOTO insertSearch
+    # insSeek will contain the active preceding leaf, its parent, and
+    # its succeeding leaf nodes.
     if insSeek.duplicate == DuplDir:
+      # If however the key provided is a duplicate of a key in the list,
+      # the insert function has failed and we deallocate the node
       freeNode(newNode)
-      clean()
-      return false
+      clean() # <- derefs val if it is a ref
+      return false  # END; FAILED INSERT
     elif insSeek.child.isNil:
       continue
+    # We now prepare to insert the new node
     parentDirection = insSeek.parentDirection
     casNode1 = cast[nuclear Node](insSeek.casNode1)
     casNode2 = cast[nuclear Node](insSeek.casNode2)
@@ -398,20 +450,29 @@ proc push*[T](tsl: TslQueue[T]; vkey: Natural, val: T): bool =
     newNode.inserting[] = true
     if leafNode.next[].cptr == nextLeaf:
       template casDir(casDir: Direction): untyped =
+        # The node is inserted with two global linearizeable atomic updates
         if leafNode.next[].cptr == nextLeaf:
-          if leafNode.next.compareExchange(nextLeaf, newNode):
+          # Atomically add the new node to the list by updating the preceding
+          # leaf nodes next pointer from the old succeeding node to our newnode.
+          if leafNode.next.compareExchange(nextLeaf, newNode, moAcquire):
+            # Success of the previous CAS linearizes the insert operation and
+            # the new node becomes active
             if newNode.inserting[]:
+              # We now atomically add the new node to the tree by updating
+              # the preceding parent nodes child pointer from the preceding
+              # node to the new node with the leaf flag set to false.
               when casDir == RightDir:
                 if casNode1.right[] == casNode2:
-                  discard casNode1.right.compareExchange(casNode2, newNode)
+                  discard casNode1.right.compareExchange(casNode2, newNode, moRelease)
 
               elif casDir == LeftDir:
                 if casNode1.left[] == casNode2:
-                  discard casNode1.left.compareExchange(casNode2, newNode)
-
+                  discard casNode1.left.compareExchange(casNode2, newNode, moRelease)
+              
               if newNode.inserting[]:
                 newNode.inserting[] = false
-            return true
+              # The insert completes and returns true
+            return true # END; SUCCESS INSERT
 
       if parentDirection == RightDir:
         casDir RightDir

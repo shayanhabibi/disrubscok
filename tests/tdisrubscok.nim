@@ -1,4 +1,4 @@
-import disrubscok
+import bonsaiq
 
 const threadCount = 16
 
@@ -12,7 +12,7 @@ var x {.threadvar.}: int
 var myobj = Obj(field1: 5, field2: 19)
 var myobj2 = Obj(field1: 3, field2: 12)
 var myobj3 = Obj(field1: 0, field2: 1)
-var tsl {.global.} = newTslQueue[Obj](1)
+var tsl {.global.} = newBonsaiQ[Obj](1)
 doAssert tsl.push(2, myobj) == true
 doAssert tsl.push(1, myobj2) == true
 doAssert tsl.push(3, myobj3) == true
@@ -64,11 +64,11 @@ echo "done"
 
 # var myobj = Obj(field1: 5, field2: 19)
 
-# var tsl = newTslQueue[Obj](1)
+# var tsl = newBonsaiQ[Obj](1)
 # doAssert tsl.push(1, myobj) == true
 # doAssert tsl.pop() == myobj
 
-# var tsl = newTslQueue[int](5)
+# var tsl = newBonsaiQ[int](5)
 
 # echo tsl.push(5, 10)
 # echo tsl.push(2, 5)

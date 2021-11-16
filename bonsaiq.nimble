@@ -1,8 +1,8 @@
 # Package
 
-version       = "0.1.2"
+version       = "0.1.0"
 author        = "shayanhabibi"
-description   = "TSLQueue"
+description   = "BonsaiQ - tree search list queue implementation"
 license       = "MIT"
 
 
